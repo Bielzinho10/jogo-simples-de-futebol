@@ -1,0 +1,291 @@
+const canvas = document.getElementById('field');
+const ctx = canvas.getContext('2d');
+
+const fieldWidth = canvas.width;
+const fieldHeight = canvas.height;
+const goalWidth = 100;
+const goalHeight = 150;
+
+const scoreboard = document.getElementById('scoreboard');
+
+// Imagens dos escudos dos times
+const team1Logo = new Image();
+team1Logo.src = 'https://pt.wikipedia.org/wiki/Ficheiro:Brazilian_Football_Confederation_logo.svg'; // Brasil
+const team2Logo = new Image();
+team2Logo.src = 'https://www.google.com/url?sa=i&url=https%3A%2F%2Fpt.wikipedia.org%2Fwiki%2FSele%25C3%25A7%25C3%25A3o_Argentina_de_Futebol&psig=AOvVaw2Kr8pFqjD_O5iq2stm8h08&ust=1749757268895000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCNidrfWP6o0DFQAAAAAdAAAAABAE'; // Argentina
+
+class Player {
+  constructor(x, y, color, upKey, downKey, leftKey, rightKey, name, isCaptain = false) {
+    this.x = x;
+    this.y = y;
+    this.radius = 20;
+    this.color = color;
+    this.speed = 5;
+    this.velX = 0;
+    this.velY = 0;
+    this.upKey = upKey;
+    this.downKey = downKey;
+    this.leftKey = leftKey;
+    this.rightKey = rightKey;
+    this.score = 0;
+    this.name = name;
+    this.isCaptain = isCaptain;
+  }
+  draw() {
+    ctx.fillStyle = this.color;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+    ctx.fill();
+
+    // Olhos
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.arc(this.x - 7, this.y - 5, 5, 0, Math.PI*2);
+    ctx.arc(this.x + 7, this.y - 5, 5, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = 'black';
+    ctx.beginPath();
+    ctx.arc(this.x - 7, this.y - 5, 2, 0, Math.PI*2);
+    ctx.arc(this.x + 7, this.y - 5, 2, 0, Math.PI*2);
+    ctx.fill();
+
+    // Nome do jogador
+    ctx.fillStyle = 'white';
+    ctx.font = '14px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(this.name, this.x, this.y + this.radius + 15);
+  }
+  move(keys) {
+    if (!this.isCaptain) return;
+
+    this.velX = 0; this.velY = 0;
+    if (keys[this.upKey]) this.velY = -this.speed;
+    if (keys[this.downKey]) this.velY = this.speed;
+    if (keys[this.leftKey]) this.velX = -this.speed;
+    if (keys[this.rightKey]) this.velX = this.speed;
+
+    this.x += this.velX;
+    this.y += this.velY;
+
+    // Limites do campo
+    if (this.x - this.radius < 0) this.x = this.radius;
+    if (this.x + this.radius > fieldWidth) this.x = fieldWidth - this.radius;
+    if (this.y - this.radius < 0) this.y = this.radius;
+    if (this.y + this.radius > fieldHeight) this.y = fieldHeight - this.radius;
+  }
+}
+
+class Ball {
+  constructor() {
+    this.x = fieldWidth/2;
+    this.y = fieldHeight/2;
+    this.radius = 15;
+    this.velX = 0;
+    this.velY = 0;
+    this.maxSpeed = 10;
+  }
+  draw() {
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.radius, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(this.x, this.y - this.radius);
+    ctx.lineTo(this.x, this.y + this.radius);
+    ctx.moveTo(this.x - this.radius, this.y);
+    ctx.lineTo(this.x + this.radius, this.y);
+    ctx.stroke();
+  }
+  update() {
+    this.x += this.velX;
+    this.y += this.velY;
+
+    this.velX *= 0.98;
+    this.velY *= 0.98;
+
+    if (this.y - this.radius < 0) {
+      this.y = this.radius;
+      this.velY = -this.velY;
+    }
+    if (this.y + this.radius > fieldHeight) {
+      this.y = fieldHeight - this.radius;
+      this.velY = -this.velY;
+    }
+    if (this.x - this.radius < 0) {
+      if (this.y > (fieldHeight/2 - goalHeight/2) && this.y < (fieldHeight/2 + goalHeight/2)) {
+        goal(2);
+      } else {
+        this.x = this.radius;
+        this.velX = -this.velX;
+      }
+    }
+    if (this.x + this.radius > fieldWidth) {
+      if (this.y > (fieldHeight/2 - goalHeight/2) && this.y < (fieldHeight/2 + goalHeight/2)) {
+        goal(1);
+      } else {
+        this.x = fieldWidth - this.radius;
+        this.velX = -this.velX;
+      }
+    }
+  }
+  reset() {
+    this.x = fieldWidth/2;
+    this.y = fieldHeight/2;
+    this.velX = (Math.random() < 0.5 ? -1 : 1) * 5;
+    this.velY = (Math.random() - 0.5) * 5;
+  }
+}
+
+function circleCollision(c1, c2) {
+  const dx = c1.x - c2.x;
+  const dy = c1.y - c2.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  return dist < c1.radius + c2.radius;
+}
+
+function bounceBall(ball, player) {
+  const dx = ball.x - player.x;
+  const dy = ball.y - player.y;
+  const dist = Math.sqrt(dx*dx + dy*dy);
+  const nx = dx / dist;
+  const ny = dy / dist;
+
+  const speed = Math.min(ball.maxSpeed, Math.sqrt(ball.velX*ball.velX + ball.velY*ball.velY) + 3);
+  ball.velX = nx * speed;
+  ball.velY = ny * speed;
+
+  ball.x = player.x + nx * (ball.radius + player.radius + 1);
+  ball.y = player.y + ny * (ball.radius + player.radius + 1);
+}
+
+function goal(playerNumber) {
+  if (playerNumber === 1) team1.forEach(p => p.score++);
+  else team2.forEach(p => p.score++);
+  updateScoreboard();
+
+  ball.reset();
+  resetPositions();
+
+  if (team1[0].score >= 3) {
+    alert('Time Brasil venceu!');
+    resetGame();
+  } else if (team2[0].score >= 3) {
+    alert('Time Argentina venceu!');
+    resetGame();
+  }
+}
+
+function updateScoreboard() {
+  scoreboard.textContent = `Brasil: ${team1[0].score}  —  Argentina: ${team2[0].score}`;
+}
+
+function resetPositions() {
+  // Capitães
+  team1[0].x = 150; team1[0].y = fieldHeight / 2;
+  team2[0].x = fieldWidth - 150; team2[0].y = fieldHeight / 2;
+
+  // Outros jogadores fixos
+  team1[1].x = 80; team1[1].y = fieldHeight / 3;
+  team1[2].x = 80; team1[2].y = fieldHeight * 2 / 3;
+  team1[3].x = 250; team1[3].y = fieldHeight / 4;
+  team1[4].x = 250; team1[4].y = fieldHeight * 3 / 4;
+
+  team2[1].x = fieldWidth - 80; team2[1].y = fieldHeight / 3;
+  team2[2].x = fieldWidth - 80; team2[2].y = fieldHeight * 2 / 3;
+  team2[3].x = fieldWidth - 250; team2[3].y = fieldHeight / 4;
+  team2[4].x = fieldWidth - 250; team2[4].y = fieldHeight * 3 / 4;
+}
+
+function resetGame() {
+  team1.forEach(p => p.score = 0);
+  team2.forEach(p => p.score = 0);
+  updateScoreboard();
+  resetPositions();
+  ball.reset();
+}
+
+// Times com 5 jogadores cada
+const team1 = [
+  new Player(150, fieldHeight/2, 'red', 'KeyW', 'KeyS', 'KeyA', 'KeyD', 'Neymar', true),
+  new Player(80, fieldHeight/3, 'red', null, null, null, null, 'Alisson'),
+  new Player(80, fieldHeight*2/3, 'red', null, null, null, null, 'Marquinhos'),
+  new Player(250, fieldHeight/4, 'red', null, null, null, null, 'Casemiro'),
+  new Player(250, fieldHeight*3/4, 'red', null, null, null, null, 'Richarlison'),
+];
+const team2 = [
+  new Player(fieldWidth - 150, fieldHeight/2, 'blue', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Messi', true),
+  new Player(fieldWidth - 80, fieldHeight/3, 'blue', null, null, null, null, 'Dybala'),
+  new Player(fieldWidth - 80, fieldHeight*2/3, 'blue', null, null, null, null, 'Otamendi'),
+  new Player(fieldWidth - 250, fieldHeight/4, 'blue', null, null, null, null, 'Di María'),
+  new Player(fieldWidth - 250, fieldHeight*3/4, 'blue', null, null, null, null, 'Aguero'),
+];
+
+const ball = new Ball();
+const keysPressed = {};
+
+window.addEventListener('keydown', e => {
+  keysPressed[e.code] = true;
+});
+window.addEventListener('keyup', e => {
+  keysPressed[e.code] = false;
+});
+
+function drawField() {
+  // Grama
+  ctx.fillStyle = '#0b6623';
+  ctx.fillRect(0, 0, fieldWidth, fieldHeight);
+
+  // Linhas campo
+  ctx.strokeStyle = 'white';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.rect(0, 0, fieldWidth, fieldHeight);
+  ctx.stroke();
+
+  // Linha do meio
+  ctx.beginPath();
+  ctx.moveTo(fieldWidth/2, 0);
+  ctx.lineTo(fieldWidth/2, fieldHeight);
+  ctx.stroke();
+
+  // Círculo central
+  ctx.beginPath();
+  ctx.arc(fieldWidth/2, fieldHeight/2, 70, 0, Math.PI*2);
+  ctx.stroke();
+
+  // Gols
+  ctx.fillStyle = 'white';
+  ctx.fillRect(0, (fieldHeight - goalHeight)/2, 10, goalHeight);
+  ctx.fillRect(fieldWidth - 10, (fieldHeight - goalHeight)/2, 10, goalHeight);
+
+  // Escudos dos times
+  ctx.drawImage(team1Logo, 10, 10, 64, 64);
+  ctx.drawImage(team2Logo, fieldWidth - 74, 10, 64, 64);
+}
+
+function gameLoop() {
+  ctx.clearRect(0, 0, fieldWidth, fieldHeight);
+  drawField();
+
+  team1[0].move(keysPressed);
+  team2[0].move(keysPressed);
+
+  [...team1, ...team2].forEach(player => {
+    if (circleCollision(ball, player)) {
+      bounceBall(ball, player);
+    }
+  });
+
+  ball.update();
+
+  [...team1, ...team2].forEach(player => player.draw());
+  ball.draw();
+
+  requestAnimationFrame(gameLoop);
+}
+
+resetGame();
+requestAnimationFrame(gameLoop);

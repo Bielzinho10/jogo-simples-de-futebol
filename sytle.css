@@ -1,0 +1,39 @@
+body {
+  margin: 0;
+  background: #0b6623; /* gramado */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  font-family: Arial, sans-serif;
+  user-select: none;
+  flex-direction: column;
+}
+
+canvas {
+  background: #0b6623;
+  border: 3px solid white;
+  display: block;
+}
+
+#info {
+  color: white;
+  font-size: 20px;
+  font-weight: bold;
+  text-shadow: 0 0 5px black;
+  margin-bottom: 10px;
+  text-align: center;
+  user-select: none;
+  width: 100%;
+}
+
+#scoreboard {
+  margin-top: 10px;
+  color: white;
+  font-size: 24px;
+  font-weight: bold;
+  text-shadow: 0 0 5px black;
+  width: 100%;
+  text-align: center;
+  user-select: none;
+}
